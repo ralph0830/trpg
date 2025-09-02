@@ -1,0 +1,76 @@
+services:
+  # PostgreSQL 데이터베이스
+  db:
+    image: postgres:14-alpine
+    container_name: trpg_postgres_db
+    restart: always
+    environment:
+      POSTGRES_USER: ralph
+      POSTGRES_DB: trpg
+      POSTGRES_PASSWORD: pjtfc1251!
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ralph -d trpg"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 백엔드 Node.js 서버
+  backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: trpg_backend
+    restart: always
+    environment:
+      # 데이터베이스 연결 정보
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: ralph
+      DB_PASSWORD: pjtfc1251!
+      DB_NAME: trpg
+      # 서버 포트
+      PORT: 3002
+      # Node.js 환경
+      NODE_ENV: development
+    ports:
+      - "3002:3002"
+    volumes:
+      # 개발모드에서 코드 변경 감지를 위한 볼륨 마운트
+      - ./backend:/app
+      - /app/node_modules
+    depends_on:
+      db:
+        condition: service_healthy
+    command: npm run dev
+
+  # 프론트엔드 React + Vite 개발서버
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: trpg_frontend
+    restart: always
+    environment:
+      # Vite 개발서버 설정
+      VITE_BACKEND_URL: http://localhost:3002
+    ports:
+      - "5173:5173"
+    volumes:
+      # 개발모드에서 코드 변경 감지를 위한 볼륨 마운트
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+    stdin_open: true
+    tty: true
+
+volumes:
+  postgres_data:
+
+networks:
+  default:
+    name: trpg_network
